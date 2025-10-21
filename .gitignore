@@ -1,3 +1,6 @@
 *.csv
 *.csv.qz
 # data files to not be uploaded
+
+*.DS_Store
+# macOS system file to not be uploaded
