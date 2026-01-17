@@ -4,3 +4,6 @@
 
 *.DS_Store
 # macOS system file to not be uploaded
+
+*.txt
+# md for notes to ppl, txt is usually reserved for string outputs. This may contain non-sharable data
