@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
 from sklearn.model_selection import train_test_split, KFold, cross_val_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import (
     mean_squared_error,
@@ -93,11 +93,8 @@ class EarlyStopping:
             return 2
 
 
-# Have to discuss chose which model to train and triage for "Regression" data.
-# Choice 1: Linear Regression Skit learn
-
-
-# Choice 2:
+# Have to discuss chose which model to train
+# Future plans will see if Transformer fits in.
 class MultiLayerPerceptron(nn.Module):
     "A simple and configurable multi-layer perceptron."
 
@@ -164,16 +161,12 @@ def col_transform(csv_path: str = "paintrainingdata.csv") -> pd.DataFrame:
     df = df.copy()
 
     # define category columns
-    categories_columns = [
-        "gender",
-        "race",
-        "arrival_transport"
-    ]
+    categories_columns = ["gender", "race", "arrival_transport"]
     # using one-hot encoding categories_columns
-    #into ex: gender_m, gender_f, gender_x, race_white, race_black.....many columns
-    df = pd.get_dummies(df, columns = categories_columns, dtype = int)
+    # into ex: gender_m, gender_f, gender_x, race_white, race_black.....many columns
+    df = pd.get_dummies(df, columns=categories_columns, dtype=int)
 
-    #df = df.dropna()
+    # df = df.dropna()
 
     return df
 
@@ -210,7 +203,14 @@ def load_data(df: pd.DataFrame):
         "pain",
     ]
     # X:categories_features:
-    exclude_columns = numeric_features + ["Level of Care", "subject_id", "stay_id", "intime", "chiefcomplaint", "Unnamed: 0"]
+    exclude_columns = numeric_features + [
+        "Level of Care",
+        "subject_id",
+        "stay_id",
+        "intime",
+        "chiefcomplaint",
+        "Unnamed: 0",
+    ]
     categories_features = [col for col in df.columns if col not in exclude_columns]
 
     # all x features with order: numeric_features + categories_features:
@@ -243,12 +243,13 @@ def load_data(df: pd.DataFrame):
         X_train_val, y_train_val, test_size=0.25, random_state=42
     )
 
-
     # Standardization
-    standard_scaler = StandardScaler()
-    # choose only numeric_features into fit scaler:
+    standard_scaler = MinMaxScaler()  # choose only numeric_features into fit scaler:
     numeric_count = len(numeric_features)
-    X_train[:, :numeric_count] = standard_scaler.fit_transform(X_train[:, :numeric_count])
+
+    X_train[:, :numeric_count] = standard_scaler.fit_transform(
+        X_train[:, :numeric_count]
+    )
     X_val[:, :numeric_count] = standard_scaler.transform(X_val[:, :numeric_count])
     X_test[:, :numeric_count] = standard_scaler.transform(X_test[:, :numeric_count])
 
@@ -274,7 +275,7 @@ def load_data(df: pd.DataFrame):
     val_loader = DataLoader(val_dataset, batch_size=6, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=6, shuffle=False)
 
-    n_features = X_train.shape[1] #update total features
+    n_features = X_train.shape[1]  # update total features
 
     return train_loader, val_loader, test_loader, n_features
 
@@ -338,7 +339,9 @@ def train(
         # ================= Check early stop ========================
         earlystop_status = earlystop_tracker.check(avg_val_loss)
         if earlystop_status == 0:  # Improves
-            torch.save(model.state_dict(), "mlp_regression_model.pth") # move the statement outside the for loop and before the return statement
+            torch.save(
+                model.state_dict(), "mlp_regression_model.pth"
+            )  # move the statement outside the for loop and before the return statement
             best_model_saved = True
         if earlystop_status == 2:  # Did not improve
             print("Early stopping triggered.")
@@ -347,7 +350,7 @@ def train(
     if best_model_saved:
         model.load_state_dict(torch.load("mlp_regression_model.pth"))
 
-    return model
+    return model, outputs, X_batch
 
 
 def evaluate(model, test_loader):
@@ -383,14 +386,17 @@ def main() -> None:
 
     train_loader, val_loader, test_loader, n_features = load_data(df)
     layer_units = [32, 64, 32]
-    model = train(
+    model, outputs, X_batch = train(
         train_loader,
         val_loader,
         n_features,
         layer_units,
-        num_epochs=100, # increased epochs, because I have "Early stop"
+        num_epochs=100,  # increased epochs, because I have "Early stop"
         learning_rate=0.001,
     )
+    print(f"the X_batch:\n", X_batch)
+    print("")
+    print(f"the output is:\n", outputs)
 
     evaluate(model, test_loader)
 
